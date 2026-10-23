@@ -327,7 +327,8 @@ button {
 input[type="email"],
 input[type="text"],
 input[type="password"],
-input[type="number"] {
+input[type="number"],
+select {
     width: 100%;
     padding: var(--spacing-sm);
     background: var(--surface);
@@ -761,4 +762,55 @@ input:focus {
     .panel-input {
         flex-direction: column;
     }
+}
+/* ============================================
+   TALK WITH A SPEAKER (custom feature)
+   ============================================ */
+
+.chat-log {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    max-height: 32rem;
+    overflow-y: auto;
+    margin-bottom: var(--spacing-md);
+}
+
+.chat-log:empty {
+    display: none;
+}
+
+.chat-bubble {
+    max-width: 85%;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    animation: slideIn 0.3s ease;
+}
+
+.chat-user {
+    align-self: flex-end;
+    background: var(--secondary);
+}
+
+.chat-assistant {
+    align-self: flex-start;
+    background: var(--background);
+    border: 1px solid var(--surface-light);
+}
+
+.chat-error {
+    color: var(--error);
+}
+
+.chat-sources {
+    margin-top: var(--spacing-xs);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    white-space: normal;
+}
+
+.chat-sources a {
+    color: var(--primary);
 }

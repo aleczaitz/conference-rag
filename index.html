@@ -132,6 +132,27 @@
                     </div>
                     <div class="search-results" id="rag-results"></div>
                 </div>
+
+                <!-- Panel 4: Talk with a Speaker (custom feature) -->
+                <div class="search-panel" id="speaker-panel">
+                    <div class="panel-header">
+                        <h3>💬 Talk with a Speaker</h3>
+                        <span class="status-badge not-ready" id="speaker-status">🔴 Not Ready</span>
+                    </div>
+                    <p class="panel-description">Have a conversation with a General Conference speaker. Replies are
+                        AI-generated from their talks and imitate their style. It is not the real person.</p>
+                    <div class="panel-input">
+                        <select id="speaker-select" disabled>
+                            <option>Loading speakers...</option>
+                        </select>
+                    </div>
+                    <div class="chat-log" id="speaker-log"></div>
+                    <div class="panel-input">
+                        <input type="text" id="speaker-input" placeholder="Say something..." autocomplete="off"
+                            disabled />
+                        <button id="speaker-btn" class="btn-primary" disabled>Send</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

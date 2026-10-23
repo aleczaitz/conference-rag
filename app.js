@@ -363,11 +363,16 @@ async function checkSearchReadiness() {
                 setSearchReady('rag', false);
             }
         }
+
+        // Talk with a Speaker needs the same embedding pipeline as semantic search
+        setSearchReady('speaker', semanticReady);
+        if (semanticReady) loadSpeakers();
     } catch (err) {
         console.log('Readiness check failed:', err.message);
         setSearchReady('keyword', false);
         setSearchReady('semantic', false);
         setSearchReady('rag', false);
+        setSearchReady('speaker', false);
     } finally {
         readinessCheckRunning = false;
     }
@@ -580,6 +585,93 @@ async function askQuestion() {
 }
 
 // ============================================
+// TALK WITH A SPEAKER (custom feature)
+// ============================================
+// A multi-turn chat in one speaker's voice. Every turn re-runs retrieval
+// limited to that speaker's talks, then speaker-chat replies in first person.
+
+const speakerSelect = document.getElementById('speaker-select');
+const speakerInput = document.getElementById('speaker-input');
+const speakerBtn = document.getElementById('speaker-btn');
+const speakerLog = document.getElementById('speaker-log');
+let speakerMessages = []; // [{ role: 'user' | 'assistant', content }]
+
+async function loadSpeakers() {
+    const { data, error } = await supabaseClient.rpc('list_speakers');
+    if (error) {
+        speakerSelect.replaceChildren(new Option('Could not load speakers'));
+        return;
+    }
+    // new Option() sets text safely, no HTML escaping needed
+    speakerSelect.replaceChildren(...data.map(s =>
+        new Option(`${s.name} (${s.talk_count} talk${s.talk_count === 1 ? '' : 's'})`, s.name)));
+    speakerSelect.disabled = false;
+}
+
+function appendChatBubble(role, text) {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble chat-${role}`;
+    bubble.textContent = text;
+    speakerLog.appendChild(bubble);
+    speakerLog.scrollTop = speakerLog.scrollHeight;
+    return bubble;
+}
+
+async function sendToSpeaker() {
+    const text = speakerInput.value.trim();
+    const speaker = speakerSelect.value;
+    if (!text || !speaker || !supabaseClient) return;
+
+    speakerInput.value = '';
+    speakerBtn.disabled = true;
+    speakerMessages.push({ role: 'user', content: text });
+    appendChatBubble('user', text);
+    const reply = appendChatBubble('assistant', '...');
+
+    try {
+        // Embed the last two user messages so a follow-up like "say more about that"
+        // still retrieves talks on the earlier topic.
+        const recent = speakerMessages.filter(m => m.role === 'user').slice(-2).map(m => m.content).join(' ');
+        const embedding = await getEmbedding(recent);
+
+        const { data: matches, error } = await supabaseClient.rpc('match_speaker_sentences', {
+            query_embedding: embedding,
+            speaker_name: speaker,
+            match_count: 20
+        });
+        if (error) throw new Error(`Database search failed: ${error.message}`);
+        const talks = await fetchFullTalkText(groupByTalk(matches));
+
+        const { data, error: fnError } = await supabaseClient.functions.invoke('speaker-chat', {
+            body: { speaker, messages: speakerMessages, context_talks: talks }
+        });
+        if (fnError) throw new Error(data?.error || 'Failed to get a reply');
+
+        speakerMessages.push({ role: 'assistant', content: data.answer });
+        reply.textContent = data.answer;
+        const sources = document.createElement('div');
+        sources.className = 'chat-sources';
+        sources.append('Drawing on: ');
+        talks.forEach((t, i) => {
+            const link = document.createElement('a');
+            link.href = t.url;
+            link.target = '_blank';
+            link.textContent = t.title;
+            sources.append(i ? ', ' : '', link);
+        });
+        reply.appendChild(sources);
+    } catch (error) {
+        // Drop the unanswered message so the history sent next time stays user/assistant pairs
+        speakerMessages.pop();
+        reply.textContent = `Error: ${error.message}`;
+        reply.classList.add('chat-error');
+    } finally {
+        speakerBtn.disabled = false;
+        speakerLog.scrollTop = speakerLog.scrollHeight;
+    }
+}
+
+// ============================================
 // SHARED SEARCH UTILITIES
 // ============================================
 
@@ -750,6 +842,17 @@ if (semanticInput) semanticInput.addEventListener('keypress', (e) => {
 if (ragBtn) ragBtn.addEventListener('click', askQuestion);
 if (ragInput) ragInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') askQuestion();
+});
+
+// Talk with a Speaker
+if (speakerBtn) speakerBtn.addEventListener('click', sendToSpeaker);
+if (speakerInput) speakerInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !speakerBtn.disabled) sendToSpeaker();
+});
+// A new speaker starts a new conversation
+if (speakerSelect) speakerSelect.addEventListener('change', () => {
+    speakerMessages = [];
+    speakerLog.replaceChildren();
 });
 
 // ============================================
